@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Perceptron Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .controls {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .visualization {
+            flex: 2;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        input[type="number"] {
+            width: 100px;
+            padding: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        canvas {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .weight-label {
+            font-size: 12px;
+            fill: #666;
+        }
+        .node {
+            fill: #fff;
+            stroke: #333;
+            stroke-width: 2;
+        }
+        .node.active {
+            fill: #4CAF50;
+        }
+        .connection {
+            stroke: #666;
+            stroke-width: 2;
+        }
+        .connection.active {
+            stroke: #4CAF50;
+            stroke-width: 3;
+        }
+        .calculation-box {
+            fill: #f8f9fa;
+            stroke: #666;
+            stroke-width: 1;
+        }
+        .calculation-text {
+            font-size: 12px;
+            fill: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Perceptron Visualizer</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <form method="POST" id="perceptronForm">
+                <div class="input-group">
+                    <label for="num_inputs">Number of Inputs:</label>
+                    <input type="number" id="num_inputs" name="num_inputs" value="2" min="1" max="10" onchange="updateInputs()">
+                </div>
+
+                <div class="input-group">
+                    <label for="activation">Activation Function:</label>
+                    <select id="activation" name="activation" onchange="calculateOutput()">
+                        <option value="step">Step Function</option>
+                        <option value="sigmoid">Sigmoid</option>
+                        <option value="relu">ReLU</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="softplus">Softplus</option>
+                    </select>
+                </div>
+
+                <div id="inputs-container">
+                    <!-- Input fields will be dynamically added here -->
+                </div>
+
+                {% if result %}
+                <div class="result">
+                    <h3>Results:</h3>
+                    {% if result.error %}
+                        <p style="color: red;">Error: {{ result.error }}</p>
+                    {% else %}
+                        <p>Weighted Sum: {{ "%.4f"|format(result.weighted_sum) }}</p>
+                        <p>Activation Function: {{ result.activation }}</p>
+                        <p>Output: {{ "%.4f"|format(result.output) }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="visualization">
+            <h2>Neural Network Visualization</h2>
+            <canvas id="neuralCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('neuralCanvas');
+        const ctx = canvas.getContext('2d');
+        let inputs = [];
+        let weights = [];
+        let result = null;
+
+        function drawNeuralNetwork() {
+            const width = canvas.width;
+            const height = canvas.height;
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw input nodes
+            const inputSpacing = height / (inputs.length + 1);
+            inputs.forEach((input, i) => {
+                const y = inputSpacing * (i + 1);
+                ctx.beginPath();
+                ctx.arc(100, y, 20, 0, Math.PI * 2);
+                ctx.fillStyle = input !== 0 ? '#4CAF50' : '#fff';
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'right';
+                ctx.fillText(`x${i+1}=${input}`, 70, y + 5);
+            });
+
+            // Draw weighted sum node
+            const sumY = height / 2;
+            ctx.beginPath();
+            ctx.arc(width/2, sumY, 30, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.fillText('Σ', width/2, sumY + 5);
+
+            // Draw output node
+            ctx.beginPath();
+            ctx.arc(width - 100, sumY, 30, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            if (result) {
+                ctx.fillText(`Output: ${result.output.toFixed(4)}`, width - 100, sumY);
+            } else {
+                ctx.fillText('Output', width - 100, sumY + 5);
+            }
+
+            // Draw connections from inputs to sum
+            inputs.forEach((input, i) => {
+                const y = inputSpacing * (i + 1);
+                ctx.beginPath();
+                ctx.moveTo(120, y);
+                ctx.lineTo(width/2 - 30, sumY);
+                ctx.strokeStyle = input !== 0 ? '#4CAF50' : '#666';
+                ctx.lineWidth = input !== 0 ? 3 : 1;
+                ctx.stroke();
+
+                // Draw weight labels
+                const midX = (120 + width/2 - 30) / 2;
+                const midY = (y + sumY) / 2;
+                ctx.fillStyle = '#666';
+                ctx.textAlign = 'center';
+                ctx.fillText(`w${i+1}=${weights[i].toFixed(2)}`, midX, midY);
+            });
+
+            // Draw connection from sum to output
+            ctx.beginPath();
+            ctx.moveTo(width/2 + 30, sumY);
+            ctx.lineTo(width - 130, sumY);
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw calculation boxes
+            if (result) {
+                // Weighted sum box
+                ctx.fillStyle = '#f8f9fa';
+                ctx.fillRect(width/2 - 100, sumY - 40, 200, 30);
+                ctx.strokeRect(width/2 - 100, sumY - 40, 200, 30);
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Sum = ${result.weighted_sum.toFixed(4)}`, width/2, sumY - 20);
+
+                // Activation function box
+                ctx.fillStyle = '#f8f9fa';
+                ctx.fillRect(width/2 - 100, sumY + 10, 200, 30);
+                ctx.strokeRect(width/2 - 100, sumY + 10, 200, 30);
+                ctx.fillStyle = '#333';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${result.activation}(${result.weighted_sum.toFixed(4)}) = ${result.output.toFixed(4)}`, 
+                           width/2, sumY + 30);
+            }
+        }
+
+        function calculateOutput() {
+            // Calculate weighted sum
+            let weightedSum = 0;
+            for (let i = 0; i < inputs.length; i++) {
+                weightedSum += inputs[i] * weights[i];
+            }
+
+            // Get activation function
+            const activation = document.getElementById('activation').value;
+            let output;
+
+            // Apply activation function
+            switch(activation) {
+                case 'sigmoid':
+                    output = 1 / (1 + Math.exp(-weightedSum));
+                    break;
+                case 'relu':
+                    output = Math.max(0, weightedSum);
+                    break;
+                case 'tanh':
+                    output = Math.tanh(weightedSum);
+                    break;
+                case 'softplus':
+                    output = Math.log(1 + Math.exp(weightedSum));
+                    break;
+                default: // step function
+                    output = weightedSum > 0.5 ? 1 : 0;
+            }
+
+            // Update result
+            result = {
+                weighted_sum: weightedSum,
+                output: output,
+                activation: activation
+            };
+
+            // Update the result display
+            const resultDiv = document.querySelector('.result');
+            if (!resultDiv) {
+                const newResultDiv = document.createElement('div');
+                newResultDiv.className = 'result';
+                document.getElementById('perceptronForm').appendChild(newResultDiv);
+            }
+            document.querySelector('.result').innerHTML = `
+                <h3>Results:</h3>
+                <p>Weighted Sum: ${weightedSum.toFixed(4)}</p>
+                <p>Activation Function: ${activation}</p>
+                <p>Output: ${output.toFixed(4)}</p>
+            `;
+
+            // Redraw the network with new results
+            drawNeuralNetwork();
+        }
+
+        function updateInputs() {
+            const numInputs = parseInt(document.getElementById('num_inputs').value);
+            const container = document.getElementById('inputs-container');
+            container.innerHTML = '';
+
+            inputs = Array(numInputs).fill(0);
+            weights = Array(numInputs).fill(0.5);
+
+            for (let i = 0; i < numInputs; i++) {
+                const div = document.createElement('div');
+                div.className = 'input-group';
+                div.innerHTML = `
+                    <h3>Input ${i + 1}</h3>
+                    <div>
+                        <label>Value:</label>
+                        <input type="number" name="input_${i}" value="0" step="0.1" 
+                               onchange="updateInput(${i}, this.value)">
+                    </div>
+                    <div>
+                        <label>Weight:</label>
+                        <input type="number" name="weight_${i}" value="0.5" step="0.1" min="-1" max="1"
+                               onchange="updateWeight(${i}, this.value)">
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+            calculateOutput();
+        }
+
+        function updateInput(index, value) {
+            inputs[index] = parseFloat(value);
+            calculateOutput();
+        }
+
+        function updateWeight(index, value) {
+            weights[index] = parseFloat(value);
+            calculateOutput();
+        }
+
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            drawNeuralNetwork();
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            updateInputs();
+        });
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html> 
