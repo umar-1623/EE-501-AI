@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 from sklearn.datasets import make_classification
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import matplotlib.pyplot as plt
 import networkx as nx
+from sklearn import datasets
 
 # Supported activations
 ACTIVATION_MAP = {
@@ -56,6 +57,103 @@ def generate_dataset(n_samples, n_features, n_classes, random_state=42):
     X = scaler.fit_transform(X)
     
     return X, y
+
+def load_custom_dataset(df, feature_columns, target_column):
+    """
+    Load and preprocess a custom dataset from a pandas DataFrame.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing the dataset
+        feature_columns (list): List of column names to use as features
+        target_column (str): Name of the column to use as target
+    
+    Returns:
+        tuple: (X, y, n_features, n_classes)
+            X (np.ndarray): Feature matrix
+            y (np.ndarray): Target vector
+            n_features (int): Number of features
+            n_classes (int): Number of classes
+    """
+    # Extract features and target
+    X = df[feature_columns].values
+    y = df[target_column].values
+    
+    # Handle categorical targets
+    if not np.issubdtype(y.dtype, np.number):
+        le = LabelEncoder()
+        y = le.fit_transform(y)
+    
+    # Standardize features
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    
+    # Get dimensions
+    n_features = X.shape[1]
+    n_classes = len(np.unique(y))
+    
+    return X, y, n_features, n_classes
+
+def load_standard_dataset(dataset_name):
+    """
+    Load a standard dataset from scikit-learn.
+    
+    Args:
+        dataset_name (str): Name of the dataset to load
+    
+    Returns:
+        tuple: (X, y, n_features, n_classes)
+            X (np.ndarray): Feature matrix
+            y (np.ndarray): Target vector
+            n_features (int): Number of features
+            n_classes (int): Number of classes
+    """
+    is_image_data = False
+    img_shape = None
+    
+    if dataset_name == "Iris":
+        data = datasets.load_iris()
+    elif dataset_name == "Wine":
+        data = datasets.load_wine()
+    elif dataset_name == "Breast Cancer":
+        data = datasets.load_breast_cancer()
+    elif dataset_name == "Digits":
+        data = datasets.load_digits()
+        is_image_data = True
+        img_shape = (8, 8)  # 8x8 pixel images
+    elif dataset_name == "MNIST (subset)":
+        # Load a subset of MNIST
+        from sklearn.datasets import fetch_openml
+        X, y = fetch_openml('mnist_784', version=1, return_X_y=True, parser='auto')
+        X = X.to_numpy()
+        y = y.astype(int).to_numpy()
+        
+        # Take a subset of 2000 samples
+        indices = np.random.RandomState(42).choice(len(X), 2000, replace=False)
+        X = X[indices]
+        y = y[indices]
+        
+        # Scale features
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+        
+        is_image_data = True
+        img_shape = (28, 28)  # 28x28 pixel images
+        
+        return X, y, X.shape[1], len(np.unique(y)), is_image_data, img_shape
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
+    
+    X = data.data
+    y = data.target
+    
+    # Standardize features
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    
+    n_features = X.shape[1]
+    n_classes = len(np.unique(y))
+    
+    return X, y, n_features, n_classes, is_image_data, img_shape
 
 def split_data(X, y, val_pct, test_pct, random_state=42):
     np.random.seed(random_state)
@@ -240,5 +338,51 @@ def visualize_network(input_size, hidden_sizes, output_size):
     fig, ax = plt.subplots(figsize=(2*len(layers), 6))
     nx.draw(G, pos, ax=ax, with_labels=True, labels=node_labels, node_size=1000, node_color='skyblue', arrowsize=10)
     ax.set_title('MLP Architecture')
+    plt.tight_layout()
+    return fig
+
+def plot_image_predictions(X_test, y_test, y_pred, img_shape, num_samples=10):
+    """
+    Plot test images with their true and predicted labels.
+    
+    Args:
+        X_test (np.ndarray): Test images (flattened)
+        y_test (np.ndarray): True labels
+        y_pred (np.ndarray): Predicted labels
+        img_shape (tuple): Shape of original images (height, width)
+        num_samples (int): Number of samples to display
+    
+    Returns:
+        matplotlib.figure.Figure: Figure with plotted images
+    """
+    # Select a subset of images to display
+    indices = np.random.choice(len(X_test), min(num_samples, len(X_test)), replace=False)
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+    axes = axes.flatten()
+    
+    for i, idx in enumerate(indices):
+        if i >= len(axes):
+            break
+            
+        # Reshape and normalize the image for display
+        img = X_test[idx].reshape(img_shape)
+        
+        # Convert standardized values back to 0-1 range for display
+        img_min, img_max = img.min(), img.max()
+        img_normalized = (img - img_min) / (img_max - img_min)
+        
+        # Display the image
+        axes[i].imshow(img_normalized, cmap='gray')
+        axes[i].set_title(f'True: {y_test[idx]}, Pred: {y_pred[idx]}')
+        axes[i].axis('off')
+        
+        # Add color to the title based on correct/incorrect prediction
+        if y_test[idx] == y_pred[idx]:
+            axes[i].title.set_color('green')
+        else:
+            axes[i].title.set_color('red')
+    
     plt.tight_layout()
     return fig 
