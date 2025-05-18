@@ -99,5 +99,5 @@ The primary goals of this repository are to:
 For any questions or feedback, please contact:
 
 * **Email:** \[umar.sadique@uetpeshawar.edu.pk]
-* **LinkedIn:** \[[Your LinkedIn Profile](https://www.linkedin.com/in/umar-sadique-4bb45521b?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3B4tEc15ZoQJ2PqVARa8fR5Q%3D%3D)]
-* **GitHub:** \[[Your GitHub Profile](https://github.com/umar-1623)]
+* **LinkedIn:** \[[LinkedIn Profile](https://www.linkedin.com/in/umar-sadique-4bb45521b?lipi=urn%3Ali%3Apage%3Ad_flagship3_profile_view_base_contact_details%3B4tEc15ZoQJ2PqVARa8fR5Q%3D%3D)]
+* **GitHub:** \[[GitHub Profile](https://github.com/umar-1623)]
